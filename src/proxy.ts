@@ -575,5 +575,13 @@ export function createProxyServer(config: ProxyConfig, logger: StructuredLogger)
     fetch(request) {
       return handleProxyRequest(request, config, logger);
     },
+    error(error) {
+      logger.log({
+        timestamp: new Date().toISOString(),
+        event: "proxy.unhandled_error",
+        error: serializeError(error),
+      });
+      return new Response("Internal Server Error", { status: 500 });
+    },
   });
 }
