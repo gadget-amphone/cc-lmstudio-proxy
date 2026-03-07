@@ -330,3 +330,147 @@ test("proxy returns 502 when upstream is unreachable", async () => {
     await stopServer(proxy);
   }
 });
+
+test("proxy strips cache_control from messages and normalizes cch values", async () => {
+  let upstreamPayload: Record<string, unknown> | undefined;
+  const upstream = startTestServer(async (request) => {
+    upstreamPayload = (await request.json()) as Record<string, unknown>;
+    return Response.json({ ok: true });
+  });
+  const proxy = createProxyServer(
+    {
+      host: "127.0.0.1",
+      port: 0,
+      upstreamBaseUrl: upstream.url,
+      requestTimeoutMs: 5_000,
+      logBodyMaxBytes: 8_192,
+      prettyLogs: false,
+    },
+    { log() {} },
+  );
+
+  try {
+    const requestPayload = {
+      model: "local-model",
+      system: [
+        {
+          type: "text",
+          text: "x-anthropic-billing-header: cch=aa1bb;",
+        },
+        { type: "text", text: "You are helpful." },
+      ],
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "hello" },
+          ],
+        },
+        {
+          role: "assistant",
+          content: [
+            { type: "text", text: "Hi there!" },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: "README says cch=bb9bb in the docs",
+            },
+            {
+              type: "text",
+              text: "check this",
+              cache_control: { type: "ephemeral" },
+            },
+          ],
+        },
+      ],
+    };
+    const response = await fetch(new URL("/v1/messages", proxy.url), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(requestPayload),
+    });
+
+    expect(response.status).toBe(200);
+    expect(upstreamPayload).toBeDefined();
+
+    const upstreamMessages = upstreamPayload?.messages as Array<{
+      role: string;
+      content: unknown;
+    }>;
+
+    // cache_control should be stripped from the last user message
+    const lastUserContent = upstreamMessages[2]?.content as Array<Record<string, unknown>>;
+    expect(lastUserContent[1]).toEqual({ type: "text", text: "check this" });
+    expect(lastUserContent[1]).not.toHaveProperty("cache_control");
+
+    // cch in tool_result content should be normalized to 00000
+    expect(lastUserContent[0]).toEqual({
+      type: "tool_result",
+      tool_use_id: "tool-1",
+      content: "README says cch=00000 in the docs",
+    });
+
+    // Unaffected messages remain unchanged
+    expect(upstreamMessages[0]?.content).toEqual([
+      { type: "text", text: "hello" },
+    ]);
+  } finally {
+    await stopServer(proxy);
+    await stopServer(upstream);
+  }
+});
+
+test("proxy restores cch only in billing header context, not in file content", async () => {
+  const billingHeader = "x-anthropic-billing-header: cc_version=1; cch=00000;";
+  const fileContent = "README mentions cch=00000 here";
+  const upstream = startTestServer(() => {
+    return Response.json({
+      billing: billingHeader,
+      file: fileContent,
+    });
+  });
+  const proxy = createProxyServer(
+    {
+      host: "127.0.0.1",
+      port: 0,
+      upstreamBaseUrl: upstream.url,
+      requestTimeoutMs: 5_000,
+      logBodyMaxBytes: 8_192,
+      prettyLogs: false,
+    },
+    { log() {} },
+  );
+
+  try {
+    const response = await fetch(new URL("/v1/messages", proxy.url), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "test",
+        system: [
+          {
+            type: "text",
+            text: "x-anthropic-billing-header: cc_version=1; cch=abcde;",
+          },
+        ],
+        messages: [],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { billing: string; file: string };
+
+    // Billing header context: cch=00000 should be restored to original
+    expect(body.billing).toBe("x-anthropic-billing-header: cc_version=1; cch=abcde;");
+    // File content: cch=00000 should NOT be restored
+    expect(body.file).toBe("README mentions cch=00000 here");
+  } finally {
+    await stopServer(proxy);
+    await stopServer(upstream);
+  }
+});

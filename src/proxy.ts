@@ -19,6 +19,7 @@ const HOP_BY_HOP_HEADERS = new Set([
 ]);
 const FIXED_PROMPT_CACHE_CCH = "00000";
 const BILLING_HEADER_CCH_PATTERN = /(x-anthropic-billing-header:[^\n]*\bcch=)([0-9a-f]{5})(;?)/i;
+const CCH_STANDALONE_PATTERN = /\bcch=([0-9a-f]{5})\b/gi;
 const DEFAULT_SERVER_IDLE_TIMEOUT_SECONDS = 60;
 type HttpServer = Bun.Server<undefined>;
 
@@ -120,6 +121,99 @@ function restoreFixedCch(text: string, cchRewrite: CchRewrite | null): string {
   return text.replaceAll(`cch=${cchRewrite.fixed}`, `cch=${cchRewrite.original}`);
 }
 
+function normalizeCchInText(text: string): string {
+  return text.replace(CCH_STANDALONE_PATTERN, `cch=${FIXED_PROMPT_CACHE_CCH}`);
+}
+
+function normalizeContentBlock(block: Record<string, unknown>): Record<string, unknown> {
+  const { cache_control: _, ...rest } = block;
+  let changed = _ !== undefined;
+
+  if (typeof rest.text === "string") {
+    const normalized = normalizeCchInText(rest.text);
+    if (normalized !== rest.text) {
+      rest.text = normalized;
+      changed = true;
+    }
+  }
+
+  if (typeof rest.content === "string") {
+    const normalized = normalizeCchInText(rest.content);
+    if (normalized !== rest.content) {
+      rest.content = normalized;
+      changed = true;
+    }
+  }
+
+  if (Array.isArray(rest.content)) {
+    const normalizedContent: unknown[] = [];
+    let contentChanged = false;
+    for (const item of rest.content) {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        const normalizedItem = normalizeContentBlock(item as Record<string, unknown>);
+        normalizedContent.push(normalizedItem);
+        if (normalizedItem !== item) {
+          contentChanged = true;
+        }
+      } else {
+        normalizedContent.push(item);
+      }
+    }
+    if (contentChanged) {
+      rest.content = normalizedContent;
+      changed = true;
+    }
+  }
+
+  return changed ? rest : (block as Record<string, unknown>);
+}
+
+function normalizeMessages(
+  messages: unknown[],
+): { messages: unknown[]; changed: boolean } {
+  let changed = false;
+  const result = messages.map((msg) => {
+    if (!msg || typeof msg !== "object" || Array.isArray(msg)) {
+      return msg;
+    }
+
+    const message = msg as Record<string, unknown>;
+
+    if (typeof message.content === "string") {
+      const normalized = normalizeCchInText(message.content);
+      if (normalized !== message.content) {
+        changed = true;
+        return { ...message, content: normalized };
+      }
+      return msg;
+    }
+
+    if (Array.isArray(message.content)) {
+      const normalizedBlocks: unknown[] = [];
+      let blocksChanged = false;
+      for (const block of message.content) {
+        if (block && typeof block === "object" && !Array.isArray(block)) {
+          const normalized = normalizeContentBlock(block as Record<string, unknown>);
+          normalizedBlocks.push(normalized);
+          if (normalized !== block) {
+            blocksChanged = true;
+          }
+        } else {
+          normalizedBlocks.push(block);
+        }
+      }
+      if (blocksChanged) {
+        changed = true;
+        return { ...message, content: normalizedBlocks };
+      }
+    }
+
+    return msg;
+  });
+
+  return { messages: result, changed };
+}
+
 function rewriteRequestBillingHeaderCch(
   requestBody: Uint8Array,
   contentType: string | null | undefined,
@@ -136,6 +230,16 @@ function rewriteRequestBillingHeaderCch(
   }
 
   if (!Array.isArray(payload.system)) {
+    // No system block: still normalize messages if present
+    if (Array.isArray(payload.messages)) {
+      const { messages: normalizedMessages, changed } = normalizeMessages(payload.messages);
+      if (changed) {
+        return {
+          body: TEXT_ENCODER.encode(JSON.stringify({ ...payload, messages: normalizedMessages })),
+          cchRewrite: null,
+        };
+      }
+    }
     return { body: requestBody, cchRewrite: null };
   }
 
@@ -172,14 +276,48 @@ function rewriteRequestBillingHeaderCch(
     };
   });
 
-  if (!cchRewrite) {
+  const messagesResult = Array.isArray(payload.messages)
+    ? normalizeMessages(payload.messages)
+    : null;
+
+  if (!cchRewrite && !messagesResult?.changed) {
     return { body: requestBody, cchRewrite: null };
   }
 
+  const normalized: Record<string, unknown> = { ...payload };
+  if (cchRewrite) {
+    normalized.system = system;
+  }
+  if (messagesResult?.changed) {
+    normalized.messages = messagesResult.messages;
+  }
+
   return {
-    body: TEXT_ENCODER.encode(JSON.stringify({ ...payload, system })),
+    body: TEXT_ENCODER.encode(JSON.stringify(normalized)),
     cchRewrite,
   };
+}
+
+function replaceInBillingHeaderContext(text: string, search: string, replacement: string): string {
+  let result = "";
+  let lastIndex = 0;
+  let index = text.indexOf(search, lastIndex);
+
+  while (index !== -1) {
+    const lineStart = text.lastIndexOf("\n", index) + 1;
+    const linePrefix = text.slice(lineStart, index);
+
+    if (/x-anthropic-billing-header:/i.test(linePrefix)) {
+      result += text.slice(lastIndex, index) + replacement;
+    } else {
+      result += text.slice(lastIndex, index + search.length);
+    }
+    lastIndex = index + search.length;
+    index = text.indexOf(search, lastIndex);
+  }
+
+  result += text.slice(lastIndex);
+  return result;
 }
 
 function createFixedCchRestoreStream(cchRewrite: CchRewrite): TransformStream<string, string> {
@@ -196,12 +334,12 @@ function createFixedCchRestoreStream(cchRewrite: CchRewrite): TransformStream<st
       carry = combined.slice(boundary);
 
       if (head) {
-        controller.enqueue(head.replaceAll(search, replace));
+        controller.enqueue(replaceInBillingHeaderContext(head, search, replace));
       }
     },
     flush(controller) {
       if (carry) {
-        controller.enqueue(carry.replaceAll(search, replace));
+        controller.enqueue(replaceInBillingHeaderContext(carry, search, replace));
       }
     },
   });
