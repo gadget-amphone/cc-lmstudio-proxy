@@ -1,16 +1,16 @@
-# ccproxy
+# cc-lmstudio-proxy
 
 **Claude Code ↔ LM Studio (llama.cpp) 間の KV キャッシュ最適化プロキシ**
 
 ```mermaid
 flowchart LR
-  CC["Claude Code"] <-->|Anthropic API| P["ccproxy"]
+  CC["Claude Code"] <-->|Anthropic API| P["cc-lmstudio-proxy"]
   P <-->|Anthropic API| LM["LM Studio\n(llama.cpp)"]
 
   style P fill:#f59e0b,color:#000,stroke:#d97706
 ```
 
-Claude Code をローカル LLM で動かすとき、リクエストごとに変わる billing ヘッダーや `cache_control` フィールドのせいで llama.cpp の **Prefix KV Cache が無効化**されてしまいます。ccproxy はこれらのノイズを正規化し、KV キャッシュのヒット率を大幅に改善します。
+Claude Code をローカル LLM で動かすとき、リクエストごとに変わる billing ヘッダーや `cache_control` フィールドのせいで llama.cpp の **Prefix KV Cache が無効化**されてしまいます。cc-lmstudio-proxy はこれらのノイズを正規化し、KV キャッシュのヒット率を大幅に改善します。
 
 ## 課題
 
@@ -38,7 +38,7 @@ Claude Code は Anthropic API の[プロンプトキャッシュ機能](https://
 
 ## 解決策
 
-ccproxy は Claude Code と LM Studio の間に入り、リクエストを以下のように正規化してから upstream に転送します。
+cc-lmstudio-proxy は Claude Code と LM Studio の間に入り、リクエストを以下のように正規化してから upstream に転送します。
 
 | 正規化処理 | 内容 |
 | --- | --- |
@@ -134,7 +134,7 @@ bun run typecheck # 型チェック
 
 ## ログ
 
-ccproxy はリクエスト / レスポンスの相関 ID 付き構造化ログ（JSON）を出力します。`authorization`, `x-api-key`, `cookie` などの機微ヘッダーは自動的にマスクされます。
+cc-lmstudio-proxy はリクエスト / レスポンスの相関 ID 付き構造化ログ（JSON）を出力します。`authorization`, `x-api-key`, `cookie` などの機微ヘッダーは自動的にマスクされます。
 
 ## ライセンス
 

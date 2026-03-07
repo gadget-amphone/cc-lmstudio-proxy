@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "claude-proxy",
+      "name": "cc-lmstudio-proxy",
       "devDependencies": {
         "@types/bun": "^1.3.10",
         "typescript": "^5.9.3",
