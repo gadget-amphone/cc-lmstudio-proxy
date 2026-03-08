@@ -1,22 +1,33 @@
 import { expect, test } from "bun:test";
 
-import { loadConfig, publicConfig } from "../src/config.ts";
+import { loadConfig, publicConfig, parseCliArgs } from "../src/config.ts";
 import { resolvePath } from "../src/path.ts";
 
-test("loadConfig resolves LOG_FILE to an absolute path", () => {
+test("loadConfig resolves LOG_FILE to an absolute path when --log is provided", () => {
+  const cliOptions = parseCliArgs(["--log"]);
   const config = loadConfig({
     UPSTREAM_BASE_URL: "http://127.0.0.1:1234",
     LOG_FILE: "logs/proxy.log",
-  });
+  }, cliOptions);
 
   expect(config.logFile).toBe(resolvePath("logs/proxy.log"));
 });
 
-test("publicConfig includes logFile when configured", () => {
+test("loadConfig ignores LOG_FILE when --log is not provided", () => {
   const config = loadConfig({
     UPSTREAM_BASE_URL: "http://127.0.0.1:1234",
     LOG_FILE: "logs/proxy.log",
   });
+
+  expect(config.logFile).toBeUndefined();
+});
+
+test("publicConfig includes logFile when --log is provided and LOG_FILE is set", () => {
+  const cliOptions = parseCliArgs(["--log"]);
+  const config = loadConfig({
+    UPSTREAM_BASE_URL: "http://127.0.0.1:1234",
+    LOG_FILE: "logs/proxy.log",
+  }, cliOptions);
 
   expect(publicConfig(config)).toEqual({
     host: "127.0.0.1",
@@ -26,8 +37,26 @@ test("publicConfig includes logFile when configured", () => {
     serverIdleTimeoutSeconds: 255,
     logBodyMaxBytes: 256 * 1024,
     prettyLogs: false,
+    enableLogging: true,
     logFile: resolvePath("logs/proxy.log"),
   });
+});
+
+test("publicConfig sets enableLogging to false when --log is not provided", () => {
+  const config = loadConfig({
+    UPSTREAM_BASE_URL: "http://127.0.0.1:1234",
+  });
+
+  expect(config.enableLogging).toBe(false);
+});
+
+test("publicConfig sets enableLogging to true when --log is provided", () => {
+  const cliOptions = parseCliArgs(["--log"]);
+  const config = loadConfig({
+    UPSTREAM_BASE_URL: "http://127.0.0.1:1234",
+  }, cliOptions);
+
+  expect(config.enableLogging).toBe(true);
 });
 
 test("loadConfig throws when UPSTREAM_BASE_URL is missing", () => {

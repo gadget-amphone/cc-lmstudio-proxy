@@ -428,7 +428,7 @@ function createErrorResponse(status: number, requestId: string, error: unknown):
 async function handleProxyRequest(
   request: Request,
   config: ProxyConfig,
-  logger: StructuredLogger,
+  logger?: StructuredLogger,
 ): Promise<Response> {
   const startedAt = Date.now();
   const requestId = crypto.randomUUID();
@@ -445,7 +445,7 @@ async function handleProxyRequest(
     );
     upstreamUrl = buildUpstreamUrl(config.upstreamBaseUrl, extractIncomingPath(request));
 
-    logger.log({
+    logger?.log({
       timestamp: new Date().toISOString(),
       event: "proxy.request",
       requestId,
@@ -479,7 +479,7 @@ async function handleProxyRequest(
     const clientHeaders = copyResponseHeaders(upstreamResponse.headers, requestId, cchRewrite);
 
     if (!responseBody) {
-      logger.log({
+      logger?.log({
         timestamp: new Date().toISOString(),
         event: "proxy.response",
         requestId,
@@ -500,7 +500,7 @@ async function handleProxyRequest(
     const [clientStream, logStream] = responseBody.tee();
     void readWebStream(logStream)
       .then((responseBodyBytes) => {
-        logger.log({
+        logger?.log({
           timestamp: new Date().toISOString(),
           event: "proxy.response",
           requestId,
@@ -516,7 +516,7 @@ async function handleProxyRequest(
         });
       })
       .catch((error) => {
-        logger.log({
+        logger?.log({
           timestamp: new Date().toISOString(),
           event: "proxy.log_error",
           requestId,
@@ -533,7 +533,7 @@ async function handleProxyRequest(
   } catch (error) {
     const status = error instanceof Error && error.name === "TimeoutError" ? 504 : 502;
 
-    logger.log({
+    logger?.log({
       timestamp: new Date().toISOString(),
       event: "proxy.error",
       requestId,
@@ -566,7 +566,7 @@ export function headersForClient(headersLike: Headers, requestId: string): Heade
   return copyResponseHeaders(headersLike, requestId, null);
 }
 
-export function createProxyServer(config: ProxyConfig, logger: StructuredLogger): HttpServer {
+export function createProxyServer(config: ProxyConfig, logger?: StructuredLogger): HttpServer {
   return Bun.serve({
     hostname: config.host,
     port: config.port,
@@ -575,7 +575,7 @@ export function createProxyServer(config: ProxyConfig, logger: StructuredLogger)
       return handleProxyRequest(request, config, logger);
     },
     error(error) {
-      logger.log({
+      logger?.log({
         timestamp: new Date().toISOString(),
         event: "proxy.unhandled_error",
         error: serializeError(error),

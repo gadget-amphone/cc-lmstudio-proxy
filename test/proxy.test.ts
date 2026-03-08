@@ -108,6 +108,7 @@ test("createProxyServer extends Bun's idle timeout for slow upstream responses",
         serverIdleTimeoutSeconds: 255,
         logBodyMaxBytes: 8_192,
         prettyLogs: false,
+        enableLogging: true,
       },
       {
         log(_entry: StructuredLogEntry) {},
@@ -140,6 +141,7 @@ test("proxy forwards JSON requests and logs redacted request plus response paylo
       serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
+      enableLogging: true,
     },
     {
       log(entry) {
@@ -227,6 +229,7 @@ test("proxy streams upstream responses while still logging the full body", async
       serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
+      enableLogging: true,
     },
     {
       log(entry) {
@@ -269,6 +272,7 @@ test("proxy returns 504 when upstream request times out", async () => {
       serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
+      enableLogging: false,
     },
     {
       log(entry) {
@@ -308,6 +312,7 @@ test("proxy returns 502 when upstream is unreachable", async () => {
       serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
+      enableLogging: true,
     },
     {
       log(entry) {
@@ -351,6 +356,7 @@ test("proxy strips cache_control from messages and normalizes cch values", async
       serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
+      enableLogging: true,
     },
     { log() {} },
   );
@@ -449,6 +455,7 @@ test("proxy restores cch only in billing header context, not in file content", a
       serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
+      enableLogging: true,
     },
     { log() {} },
   );

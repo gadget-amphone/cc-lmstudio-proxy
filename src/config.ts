@@ -19,6 +19,7 @@ export interface ProxyConfig {
   serverIdleTimeoutSeconds: number;
   logBodyMaxBytes: number;
   prettyLogs: boolean;
+  enableLogging: boolean;
   logFile?: string;
 }
 
@@ -27,9 +28,16 @@ export interface PublicProxyConfig {
   port: number;
   upstreamBaseUrl: string;
   requestTimeoutMs: number;
+  serverIdleTimeoutSeconds: number;
   logBodyMaxBytes: number;
   prettyLogs: boolean;
+  enableLogging: boolean;
   logFile?: string;
+}
+
+export interface CliOptions {
+  enableLogging: boolean;
+  help?: boolean;
 }
 
 function parsePositiveInteger(value: string | undefined, label: string, fallback: number): number {
@@ -62,7 +70,25 @@ function parseOptionalString(value: string | undefined): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
-export function loadConfig(env: EnvironmentMap = Bun.env): ProxyConfig {
+export function parseCliArgs(args: string[]): CliOptions {
+  const options: CliOptions = {
+    enableLogging: false,
+  };
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+
+    if (arg === "--help" || arg === "-h") {
+      options.help = true;
+    } else if (arg === "--log" || arg === "-l") {
+      options.enableLogging = true;
+    }
+  }
+
+  return options;
+}
+
+export function loadConfig(env: EnvironmentMap = Bun.env, cliOptions?: CliOptions): ProxyConfig {
   const rawUpstreamBaseUrl = parseOptionalString(env.UPSTREAM_BASE_URL);
   if (!rawUpstreamBaseUrl) {
     throw new Error("UPSTREAM_BASE_URL is required");
@@ -81,7 +107,9 @@ export function loadConfig(env: EnvironmentMap = Bun.env): ProxyConfig {
     throw new Error("UPSTREAM_BASE_URL must use http or https");
   }
 
-  const logFile = parseOptionalString(env.LOG_FILE);
+  // コマンドラインで --log が指定された場合のみ、LOG_FILE 環境変数を使用
+  const enableLogging = cliOptions?.enableLogging ?? false;
+  const logFile = enableLogging ? parseOptionalString(env.LOG_FILE) : undefined;
 
   return {
     host: parseOptionalString(env.PROXY_HOST) ?? DEFAULT_HOST,
@@ -106,6 +134,7 @@ export function loadConfig(env: EnvironmentMap = Bun.env): ProxyConfig {
       DEFAULT_LOG_BODY_MAX_BYTES,
     ),
     prettyLogs: parseBoolean(env.LOG_PRETTY, false),
+    enableLogging,
     logFile: logFile ? resolvePath(logFile) : undefined,
   };
 }
@@ -119,6 +148,7 @@ export function publicConfig(config: ProxyConfig): PublicProxyConfig {
     serverIdleTimeoutSeconds: config.serverIdleTimeoutSeconds,
     logBodyMaxBytes: config.logBodyMaxBytes,
     prettyLogs: config.prettyLogs,
+    enableLogging: config.enableLogging,
     logFile: config.logFile,
   };
 }

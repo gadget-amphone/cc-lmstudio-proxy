@@ -109,6 +109,13 @@ UPSTREAM_BASE_URL=http://127.0.0.1:1234
 ### 1. プロキシを起動
 
 ```bash
+# ログ出力あり（LOG_FILE が設定されていればファイル、否则 stdout）
+bun run start --log
+
+# または短縮形
+bun run start -l
+
+# ログ出力なし（デフォルト）
 bun run start
 ```
 
@@ -140,11 +147,20 @@ bun run typecheck # 型チェック
 | `REQUEST_TIMEOUT_MS` | no | `300000` | upstream リクエストのタイムアウト（ミリ秒） |
 | `LOG_BODY_MAX_BYTES` | no | `262144` | ログに記録するリクエスト / レスポンス本文の上限バイト数 |
 | `LOG_PRETTY` | no | `false` | `true` で JSON ログを整形出力 |
-| `LOG_FILE` | no | - | ログの出力先ファイル。未指定時は stdout |
+| `LOG_FILE` | no | - | ログの出力先ファイル（`--log` 指定時のみ有効） |
+
+## コマンドラインオプション
+
+| オプション | 説明 |
+| --- | --- |
+| `--log`, `-l` | ロギングを有効にする。このフラグが指定された場合のみ、`LOG_FILE` 環境変数に従ってログ出力先が切り替わる（ファイルまたは stdout） |
+| `--help`, `-h` | ヘルプメッセージを表示 |
 
 ## ログ
 
 cc-lmstudio-proxy はリクエスト / レスポンスの相関 ID 付き構造化ログ（JSON）を出力します。`authorization`, `x-api-key`, `cookie` などの機微ヘッダーは自動的にマスクされます。
+
+> 注意：ログ出力は `--log` フラグが指定された場合のみ有効になります。
 
 ## ライセンス
 
