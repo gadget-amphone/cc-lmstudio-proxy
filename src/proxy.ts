@@ -20,7 +20,6 @@ const HOP_BY_HOP_HEADERS = new Set([
 const FIXED_PROMPT_CACHE_CCH = "00000";
 const BILLING_HEADER_CCH_PATTERN = /(x-anthropic-billing-header:[^\n]*\bcch=)([0-9a-f]{5})(;?)/i;
 const CCH_STANDALONE_PATTERN = /\bcch=([0-9a-f]{5})\b/gi;
-const DEFAULT_SERVER_IDLE_TIMEOUT_SECONDS = 60;
 type HttpServer = Bun.Server<undefined>;
 
 type HeaderRecord = Record<string, string | string[] | undefined>;
@@ -571,7 +570,7 @@ export function createProxyServer(config: ProxyConfig, logger: StructuredLogger)
   return Bun.serve({
     hostname: config.host,
     port: config.port,
-    idleTimeout: DEFAULT_SERVER_IDLE_TIMEOUT_SECONDS,
+    idleTimeout: config.serverIdleTimeoutSeconds,
     fetch(request) {
       return handleProxyRequest(request, config, logger);
     },

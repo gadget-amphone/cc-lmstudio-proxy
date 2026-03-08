@@ -23,6 +23,7 @@ test("publicConfig includes logFile when configured", () => {
     port: 9000,
     upstreamBaseUrl: "http://127.0.0.1:1234/",
     requestTimeoutMs: 300_000,
+    serverIdleTimeoutSeconds: 255,
     logBodyMaxBytes: 256 * 1024,
     prettyLogs: false,
     logFile: resolvePath("logs/proxy.log"),

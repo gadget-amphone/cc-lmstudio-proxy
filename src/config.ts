@@ -4,6 +4,8 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 9000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 300_000;
 const DEFAULT_LOG_BODY_MAX_BYTES = 256 * 1024;
+const DEFAULT_SERVER_IDLE_TIMEOUT_SECONDS = 255; // Bun max: 255
+const MAX_BUN_IDLE_TIMEOUT_SECONDS = 255;
 
 export interface EnvironmentMap {
   [key: string]: string | undefined;
@@ -14,6 +16,7 @@ export interface ProxyConfig {
   port: number;
   upstreamBaseUrl: URL;
   requestTimeoutMs: number;
+  serverIdleTimeoutSeconds: number;
   logBodyMaxBytes: number;
   prettyLogs: boolean;
   logFile?: string;
@@ -89,6 +92,14 @@ export function loadConfig(env: EnvironmentMap = Bun.env): ProxyConfig {
       "REQUEST_TIMEOUT_MS",
       DEFAULT_REQUEST_TIMEOUT_MS,
     ),
+    serverIdleTimeoutSeconds: Math.min(
+      parsePositiveInteger(
+        env.SERVER_IDLE_TIMEOUT_SECONDS,
+        "SERVER_IDLE_TIMEOUT_SECONDS",
+        DEFAULT_SERVER_IDLE_TIMEOUT_SECONDS,
+      ),
+      MAX_BUN_IDLE_TIMEOUT_SECONDS,
+    ),
     logBodyMaxBytes: parsePositiveInteger(
       env.LOG_BODY_MAX_BYTES,
       "LOG_BODY_MAX_BYTES",
@@ -105,6 +116,7 @@ export function publicConfig(config: ProxyConfig): PublicProxyConfig {
     port: config.port,
     upstreamBaseUrl: config.upstreamBaseUrl.toString(),
     requestTimeoutMs: config.requestTimeoutMs,
+    serverIdleTimeoutSeconds: config.serverIdleTimeoutSeconds,
     logBodyMaxBytes: config.logBodyMaxBytes,
     prettyLogs: config.prettyLogs,
     logFile: config.logFile,

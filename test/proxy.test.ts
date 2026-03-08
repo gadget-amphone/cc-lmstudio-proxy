@@ -105,6 +105,7 @@ test("createProxyServer extends Bun's idle timeout for slow upstream responses",
         port: 0,
         upstreamBaseUrl: new URL("http://127.0.0.1:3001"),
         requestTimeoutMs: 5_000,
+        serverIdleTimeoutSeconds: 255,
         logBodyMaxBytes: 8_192,
         prettyLogs: false,
       },
@@ -113,7 +114,7 @@ test("createProxyServer extends Bun's idle timeout for slow upstream responses",
       },
     );
 
-    expect(capturedIdleTimeout).toBe(60);
+    expect(capturedIdleTimeout).toBe(255);
   } finally {
     Bun.serve = originalServe;
   }
@@ -136,6 +137,7 @@ test("proxy forwards JSON requests and logs redacted request plus response paylo
       port: 0,
       upstreamBaseUrl: upstream.url,
       requestTimeoutMs: 5_000,
+      serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
     },
@@ -222,6 +224,7 @@ test("proxy streams upstream responses while still logging the full body", async
       port: 0,
       upstreamBaseUrl: upstream.url,
       requestTimeoutMs: 5_000,
+      serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
     },
@@ -263,6 +266,7 @@ test("proxy returns 504 when upstream request times out", async () => {
       port: 0,
       upstreamBaseUrl: upstream.url,
       requestTimeoutMs: 50,
+      serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
     },
@@ -301,6 +305,7 @@ test("proxy returns 502 when upstream is unreachable", async () => {
       port: 0,
       upstreamBaseUrl: new URL("http://127.0.0.1:1"),
       requestTimeoutMs: 5_000,
+      serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
     },
@@ -343,6 +348,7 @@ test("proxy strips cache_control from messages and normalizes cch values", async
       port: 0,
       upstreamBaseUrl: upstream.url,
       requestTimeoutMs: 5_000,
+      serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
     },
@@ -440,6 +446,7 @@ test("proxy restores cch only in billing header context, not in file content", a
       port: 0,
       upstreamBaseUrl: upstream.url,
       requestTimeoutMs: 5_000,
+      serverIdleTimeoutSeconds: 255,
       logBodyMaxBytes: 8_192,
       prettyLogs: false,
     },
